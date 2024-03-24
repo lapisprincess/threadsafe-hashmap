@@ -47,30 +47,35 @@ int get(ts_hashmap_t *map, int key) {
  * @return old associated value, or INT_MAX if the key was new
  */
 int put(ts_hashmap_t *map, int key, int value) {
-  map->numOps++;
+  int index = ((unsigned int) key) % map->capacity, temp;
+  ts_entry_t *cur_entry = map->table[index];
   ts_entry_t *new_entry = (ts_entry_t*) malloc(sizeof(ts_entry_t));
-  new_entry->key = key;
-  new_entry->value = value;
+  new_entry->key = key; 
+  new_entry->value = value; 
   new_entry->next = NULL;
-  int index = ((unsigned int) key) % map->capacity;
-  ts_entry_t *entry = map->table[index];
-  if (entry == NULL) {
+  if (cur_entry == NULL) {
     map->table[index] = new_entry;
     map->size++;
-    return INT_MAX;          // no entry at key
+    map->numOps++;
+    return INT_MAX;         // no entry at index
   }
-  while (entry->next != NULL) {
-    if (entry->key == key) {
+  while (cur_entry != NULL) {
+    if (cur_entry->key == key) {
       free(new_entry);
-      int old_val = entry->value;
-      entry->value = value;
-      return old_val;        // key already exists
+      temp = cur_entry->value;
+      cur_entry->value = value;
+      map->numOps++;
+      return temp;          // key already exists
     }
-    entry = entry->next;
+    if (cur_entry->next == NULL) {
+      cur_entry->next = new_entry;
+      map->size++;
+      map->numOps++;
+      return INT_MAX;       // add to end of index
+    }
+    cur_entry = cur_entry->next;
   }
-  entry->next = new_entry;
-  map->size++;
-  return INT_MAX;             // adding to end
+  return -1;                // put unsuccessful
 }
 
 /**

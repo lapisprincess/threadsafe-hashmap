@@ -70,7 +70,7 @@ int main(int argc, char *argv[]) {
 
 	// print content and timing results
 	// UNCOMMENT BELOW FOR DEBUGGING
-	// printmap(map);
+	printmap(map);
 	printf("Number of ops = %d, time elapsed = %.6f sec\n", map->numOps, (endTime-startTime));
 	printf("Time per op   = %.6f ms\n", (double)(endTime-startTime)/map->numOps*1000);
 	freeMap(map);
