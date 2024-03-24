@@ -1,11 +1,11 @@
-all: main.c mmm.o rtclock.o
-	gcc -Wall -g -o mmm main.c mmm.o rtclock.o -lpthread -lm
+all: main.c ts_hashmap.o rtclock.o
+	gcc -Wall -g -o ts_hashmap main.c ts_hashmap.o rtclock.o -lpthread -lm
 
-mmm.o: mmm.h mmm.c
-	gcc -Wall -g -c mmm.c
+ts_hashmap.o: ts_hashmap.h ts_hashmap.c
+	gcc -Wall -g -c ts_hashmap.c
 
 rtclock.o: rtclock.h rtclock.c
 	gcc -Wall -g -c rtclock.c
 
 clean:
-	rm -f mmm *.o
+	rm -f *.o
