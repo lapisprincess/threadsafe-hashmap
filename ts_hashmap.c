@@ -14,12 +14,14 @@
 ts_hashmap_t *initmap(int capacity) {
   ts_hashmap_t *out = (ts_hashmap_t*) malloc(sizeof(ts_hashmap_t));
   ts_entry_t **table = (ts_entry_t**) malloc(capacity * sizeof(ts_entry_t));
+  pthread_mutex_t *lock = (pthread_mutex_t*) malloc(capacity * sizeof(pthread_mutex_t));
+  out->lock = lock;
   for (int i = 0; i < capacity; i++) {
     table[i] = NULL;
+    pthread_mutex_init(&out->lock[i], NULL);
   }
   out->table = table;
   out->capacity = capacity;
-  pthread_mutex_init(&out->lock, NULL);
   out->numOps = 0;
   out->size = 0;
   return out;
@@ -34,16 +36,16 @@ ts_hashmap_t *initmap(int capacity) {
 int get(ts_hashmap_t *map, int key) {
   map->numOps++;
   int index = ((unsigned int) key) % map->capacity;
-  pthread_mutex_lock(&map->lock);
+  pthread_mutex_lock(&map->lock[index]);
   ts_entry_t *entry = map->table[index];
   while (entry != NULL) {
     if (entry->key == key) {
-      pthread_mutex_unlock(&map->lock);
+      pthread_mutex_unlock(&map->lock[index]);
       return entry->value;
     }
     entry = entry->next;
   }
-  pthread_mutex_unlock(&map->lock);
+  pthread_mutex_unlock(&map->lock[index]);
 
   return INT_MAX;
 }
@@ -58,7 +60,7 @@ int get(ts_hashmap_t *map, int key) {
 int put(ts_hashmap_t *map, int key, int value) {
   map->numOps++;
   int index = ((unsigned int) key) % map->capacity, temp;
-  pthread_mutex_lock(&map->lock);
+  pthread_mutex_lock(&map->lock[index]);
   ts_entry_t *cur_entry = map->table[index];
   ts_entry_t *new_entry = (ts_entry_t*) malloc(sizeof(ts_entry_t));
   new_entry->key = key; 
@@ -67,7 +69,7 @@ int put(ts_hashmap_t *map, int key, int value) {
   if (cur_entry == NULL) {
     map->table[index] = new_entry;
     map->size++;
-    pthread_mutex_unlock(&map->lock);
+    pthread_mutex_unlock(&map->lock[index]);
     return INT_MAX;         // no entry at index
   }
   while (cur_entry != NULL) {
@@ -75,18 +77,18 @@ int put(ts_hashmap_t *map, int key, int value) {
       free(new_entry);
       temp = cur_entry->value;
       cur_entry->value = value;
-      pthread_mutex_unlock(&map->lock);
+      pthread_mutex_unlock(&map->lock[index]);
       return temp;          // key already exists
     }
     if (cur_entry->next == NULL) {
       cur_entry->next = new_entry;
       map->size++;
-      pthread_mutex_unlock(&map->lock);
+      pthread_mutex_unlock(&map->lock[index]);
       return INT_MAX;       // add to end of index
     }
     cur_entry = cur_entry->next;
   }
-  pthread_mutex_unlock(&map->lock);
+  pthread_mutex_unlock(&map->lock[index]);
   return -1;                // put unsuccessful
 }
 
@@ -100,10 +102,10 @@ int del(ts_hashmap_t *map, int key) {
   map->numOps++;
   int out;
   int index = (unsigned int) key % map->capacity;
-  pthread_mutex_lock(&map->lock);
+  pthread_mutex_lock(&map->lock[index]);
   ts_entry_t *entry = map->table[index];
   if (entry == NULL) {
-    pthread_mutex_unlock(&map->lock);
+    pthread_mutex_unlock(&map->lock[index]);
     return INT_MAX;
   }
   if (entry->key == key) {
@@ -111,7 +113,7 @@ int del(ts_hashmap_t *map, int key) {
     out = entry->value;
     map->table[index] = entry->next;
     free(entry);
-    pthread_mutex_unlock(&map->lock);
+    pthread_mutex_unlock(&map->lock[index]);
     return out;                // target key at index head
   }
   ts_entry_t *next_entry = entry->next;
@@ -121,14 +123,13 @@ int del(ts_hashmap_t *map, int key) {
       out = next_entry->value;
       entry->next = next_entry->next;
       free(next_entry);
-      pthread_mutex_unlock(&map->lock);
+      pthread_mutex_unlock(&map->lock[index]);
       return out;             // target key inside index
     } 
     entry = entry->next;
     next_entry = entry->next;
   }
-  // pthread_mutex_unlock(map->lock);
-  pthread_mutex_unlock(&map->lock);
+  pthread_mutex_unlock(&map->lock[index]);
   return INT_MAX;             // no target found
 }
 
@@ -163,8 +164,9 @@ void freeMap(ts_hashmap_t *map) {
       map->size--;
       entry = next;
     }
+    pthread_mutex_destroy(&map->lock[i]);
   }
-  pthread_mutex_destroy(&map->lock);
+  free(map->lock);
   free(map->table);
   free(map);
 }
